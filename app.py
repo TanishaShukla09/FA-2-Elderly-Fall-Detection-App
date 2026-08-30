@@ -714,7 +714,11 @@ def _detect_pose(image, timestamp_ms=None, rgb_image=None):
         result = _run_landmarker(pose_lm, key, mp_img, streaming, timestamp_ms)
         if result is None or not result.pose_landmarks:
             elapsed = time.time() - _LAST_PERSON_SEEN
-            if elapsed < _LOW_CONF_COOLDOWN:
+            # Retry with the low-confidence landmarker when the standard one
+            # misses. Requires NOT having a fresh lock (elapsed >= cooldown) or
+            # having never detected anyone yet (_LAST_PERSON_SEEN == 0) so the
+            # fallback can recover instead of being blocked forever.
+            if _LAST_PERSON_SEEN == 0.0 or elapsed >= _LOW_CONF_COOLDOWN:
                 pose_lm_low, key_low = _get_pose_landmarker(mode, low_conf=True, streaming=streaming)
                 result = _run_landmarker(pose_lm_low, key_low, mp_img, streaming, timestamp_ms)
         if result is None or not result.pose_landmarks:
