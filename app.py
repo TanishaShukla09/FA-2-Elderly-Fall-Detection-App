@@ -40,7 +40,7 @@ def _webrtc_rtc_configuration():
         {"urls": config.WEBRTC_STUN_URL},
         {"urls": ["stun:stun1.l.google.com:19302",
                   "stun:stun2.l.google.com:19302",
-                  "stun.cloudflare.com:3478"]},
+                  "stun:stun.cloudflare.com:3478"]},
     ]
     turn_url = turn_username = turn_password = None
     try:
