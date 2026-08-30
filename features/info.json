@@ -1,0 +1,188 @@
+{
+  "activities": [
+    "Standing",
+    "Sitting",
+    "Walking",
+    "Running",
+    "Falling",
+    "Lying Down",
+    "Bending",
+    "Squatting",
+    "Jumping",
+    "Climbing Stairs",
+    "Crawling",
+    "Kneeling",
+    "Crouching",
+    "Getting Up"
+  ],
+  "feature_names": [
+    "shoulder_hip_dist",
+    "torso_inclination",
+    "left_knee_angle",
+    "right_knee_angle",
+    "left_elbow_angle",
+    "right_elbow_angle",
+    "left_hip_angle",
+    "right_hip_angle",
+    "shoulder_width_ratio",
+    "hip_width_ratio",
+    "left_shoulder_hip_knee",
+    "right_shoulder_hip_knee",
+    "left_ankle_y_ratio",
+    "right_ankle_y_ratio",
+    "left_wrist_y_ratio",
+    "right_wrist_y_ratio",
+    "head_to_hip_ratio",
+    "left_knee_ankle",
+    "right_knee_ankle",
+    "torso_leg_angle",
+    "shoulder_hip_knee_left",
+    "shoulder_hip_knee_right",
+    "hip_vel_y",
+    "head_vel_y",
+    "ankle_vel_y",
+    "body_accel_mag",
+    "vert_displacement",
+    "horiz_displacement",
+    "cadence",
+    "feet_grounded",
+    "hip_drop_speed",
+    "shoulder_drop_speed",
+    "head_drop_speed",
+    "body_center_disp",
+    "time_to_horizontal",
+    "posture_change_rate",
+    "standing_to_ground",
+    "torso_angle_change",
+    "orientation_velocity",
+    "rotation_accel",
+    "post_fall_motion",
+    "stationary_duration",
+    "movement_after_event",
+    "hip_speed_mag",
+    "vert_velocity_dir",
+    "body_speed_mag"
+  ],
+  "real_counts": {
+    "standing": [
+      1165,
+      1200
+    ],
+    "sitting": [
+      1119,
+      1200
+    ],
+    "bending": [
+      1020,
+      1200
+    ],
+    "lying": [
+      1155,
+      1311
+    ],
+    "fall_dataset/train/0:Falling": [
+      179,
+      179
+    ],
+    "fall_dataset/train/2:Sitting": [
+      79,
+      79
+    ],
+    "fall_dataset/train/1:Standing": [
+      67,
+      67
+    ],
+    "fall_dataset/val/0:Falling": [
+      65,
+      65
+    ],
+    "fall_dataset/val/1:Standing": [
+      5,
+      5
+    ],
+    "fall_dataset/val/2:Sitting": [
+      13,
+      13
+    ],
+    "recorded/Crouching": [
+      64,
+      64
+    ],
+    "recorded_videos/Crouching": [
+      23,
+      23
+    ],
+    "recorded/Kneeling": [
+      53,
+      55
+    ],
+    "recorded_videos/Kneeling": [
+      19,
+      19
+    ],
+    "recorded/Lying Down": [
+      28,
+      28
+    ],
+    "recorded/Sitting": [
+      61,
+      61
+    ],
+    "recorded_videos/Sitting": [
+      22,
+      22
+    ],
+    "recorded/Standing": [
+      771,
+      772
+    ],
+    "recorded_videos/Standing": [
+      97,
+      97
+    ],
+    "recorded/Walking": [
+      152,
+      153
+    ],
+    "recorded_videos/Walking": [
+      35,
+      35
+    ],
+    "urfall/fall": [
+      565,
+      565
+    ],
+    "imvia/fall": [
+      441,
+      441
+    ],
+    "hmdb51/Climbing Stairs": [
+      104,
+      104
+    ],
+    "hmdb51/Falling": [
+      57,
+      57
+    ],
+    "hmdb51/Getting Up": [
+      144,
+      144
+    ],
+    "hmdb51/Jumping": [
+      78,
+      78
+    ],
+    "hmdb51/Running": [
+      90,
+      90
+    ],
+    "hmdb51/Sitting": [
+      202,
+      202
+    ],
+    "hmdb51/Walking": [
+      156,
+      156
+    ]
+  }
+}
