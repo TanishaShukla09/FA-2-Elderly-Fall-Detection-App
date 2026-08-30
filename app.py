@@ -28,14 +28,21 @@ import config
 
 
 def _webrtc_rtc_configuration():
-    """Return WebRTC ICE configuration without exposing TURN credentials.
+    """Return WebRTC ICE configuration without exposing private TURN credentials.
 
-    STUN is sufficient for localhost and many home networks. A Streamlit
-    Cloud deployment or a restrictive school/corporate network may require a
-    TURN relay; the owner can provide those credentials in environment
-    variables or Streamlit secrets (documented in secrets.toml.example).
+    Multiple public STUN servers are used for NAT discovery. A free public
+    TURN relay (Metered open relay) is included as a fallback so the stream
+    can connect through restrictive NATs on Streamlit Cloud. The owner can
+    override with their own STUN/TURN via environment variables or Streamlit
+    secrets (documented in secrets.toml.example).
     """
-    ice_servers = [{"urls": config.WEBRTC_STUN_URL}]
+    stun_servers = [
+        {"urls": config.WEBRTC_STUN_URL},
+        {"urls": ["stun:stun1.l.google.com:19302",
+                  "stun:stun2.l.google.com:19302",
+                  "stun.cloudflare.com:3478"]},
+    ]
+    turn_url = turn_username = turn_password = None
     try:
         turn_url = os.environ.get("TURN_URL") or st.secrets.get("TURN_URL", "")
         turn_username = os.environ.get("TURN_USERNAME") or st.secrets.get("TURN_USERNAME", "")
@@ -45,8 +52,16 @@ def _webrtc_rtc_configuration():
         turn_username = os.environ.get("TURN_USERNAME", "")
         turn_password = os.environ.get("TURN_PASSWORD", "")
     if turn_url and turn_username and turn_password:
-        ice_servers.append({"urls": turn_url, "username": turn_username,
-                            "credential": turn_password})
+        ice_servers = stun_servers + [{"urls": turn_url, "username": turn_username,
+                                       "credential": turn_password}]
+    else:
+        # Free public open relay (dev/fallback only). Swap for your own TURN
+        # server via the environment/secret overrides above for production.
+        ice_servers = stun_servers + [{
+            "urls": ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
+            "username": "openrelayproject",
+            "credential": "openrelayproject",
+        }]
     return {"iceServers": ice_servers}
 
 # ══════════════════════════════════════════════════════════
