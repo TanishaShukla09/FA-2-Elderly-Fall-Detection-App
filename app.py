@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
-from streamlit.components.v1 import html as st_html
+from streamlit.components.v1 import html as st_html, declare_component
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit_webrtc import webrtc_streamer
 import av
@@ -418,8 +418,7 @@ class TemporalAnalyzer:
     # ──────────────────────────────────────────────────────
     # 10-ACTIVITY CLASSIFICATION
     # ──────────────────────────────────────────────────────
-    TEMPORAL_CLASSES = {"Walking", "Running", "Jumping", "Climbing Stairs",
-                        "Crawling", "Getting Up"}
+    TEMPORAL_CLASSES = {"Walking", "Falling"}
 
     def _geometric_rules(self, fa):
         """SafeFall-style coordinate rules: returns (activity, confidence) when
@@ -442,9 +441,9 @@ class TemporalAnalyzer:
         # --- Falling: torso 45-70° + rapid downward hip velocity ---
         if 45 <= t <= 70 and fa.hip_vel is not None and fa.hip_vel[1] > 0.15:
             return "Falling", 0.75
-        # --- Bending: torso 30-60° + nearly straight legs ---
+        # --- Crouching: bent-over torso + straight legs (30-60°, straight legs) ---
         if 30 <= t <= 60 and ka > 145:
-            return "Bending", 0.70
+            return "Crouching", 0.70
         # --- Kneeling: knee below hip, knee near ankle level ---
         if (fa.knee_l is not None and fa.ankle_l is not None
                 and fa.knee_l[1] > hip_y and abs(fa.knee_l[1] - fa.ankle_l[1]) < 0.06):
@@ -459,9 +458,6 @@ class TemporalAnalyzer:
         # hip_knee_gap < 0 confirms hips above knees (not squatting)
         if 70 <= ka <= 120 and 70 <= ha <= 110 and t < 30 and fa.hip_knee_gap < 0:
             return "Sitting", 0.65
-        # --- Squatting: deep knee bend, hips NOT below knees ---
-        if ka < 90 and ha < 110 and t < 40 and fa.hip_knee_gap < 0.03:
-            return "Squatting", 0.70
         # --- Crouching: hips below knees, moderate lean + knee bend ---
         if ka < 100 and 20 < t < 60 and fa.hip_knee_gap > 0.03:
             return "Crouching", 0.70
@@ -560,7 +556,7 @@ def _geometric_rules_standalone(fa):
     if 45 <= t <= 70 and fa.hip_vel is not None and fa.hip_vel[1] > 0.15:
         return "Falling", 0.75
     if 30 <= t <= 60 and ka > 145:
-        return "Bending", 0.70
+        return "Crouching", 0.70
     if (fa.knee_l is not None and fa.ankle_l is not None
             and fa.knee_l[1] > hip_y and abs(fa.knee_l[1] - fa.ankle_l[1]) < 0.06):
         return "Kneeling", 0.65
@@ -569,8 +565,6 @@ def _geometric_rules_standalone(fa):
             return "Standing", 0.75
     if 70 <= ka <= 120 and 70 <= ha <= 110 and t < 30 and fa.hip_knee_gap < 0:
         return "Sitting", 0.65
-    if ka < 90 and ha < 110 and t < 40 and fa.hip_knee_gap < 0.03:
-        return "Squatting", 0.70
     if ka < 100 and 20 < t < 60 and fa.hip_knee_gap > 0.03:
         return "Crouching", 0.70
     return None, 0.0
@@ -1623,9 +1617,8 @@ SIREN_HTML = """
 PROJECT_DIR = Path(__file__).parent
 RECORDED_DIR = PROJECT_DIR / "dataset" / "recorded"
 RECORD_ACTIVITIES = [
-    "Standing", "Walking", "Sitting", "Jumping", "Lying Down",
-    "Falling", "Crawling", "Bending", "Crouching", "Kneeling",
-    "Getting Up",
+    "Standing", "Walking", "Sitting", "Lying Down",
+    "Crouching", "Kneeling",
 ]
 
 def _recorded_counts():
@@ -2086,91 +2079,14 @@ def _timer_camera(seconds=5):
     KEY = "__timer_camera_last"
     prev = st.session_state.get(KEY, None)
 
-    html = f"""
-    <style>
-      #tc-wrap {{ display:flex; flex-direction:column; align-items:center; gap:8px; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }}
-      #tc-video {{ width:100%; max-width:480px; border-radius:10px; background:#000; }}
-      #tc-canvas {{ display:none; }}
-      .tc-btn {{ padding:10px 22px; font-size:15px; font-weight:600; border:none; border-radius:8px;
-                 cursor:pointer; color:#fff; background:#2563EB; }}
-      .tc-btn:hover {{ background:#1d4ed8; }}
-      .tc-btn:disabled {{ background:#64748b; cursor:not-allowed; }}
-      #tc-count {{ font-size:22px; font-weight:700; color:#ef4444; min-height:28px; }}
-      #tc-status {{ font-size:13px; color:#94a3b8; min-height:18px; }}
-    </style>
-    <div id="tc-wrap">
-      <video id="tc-video" autoplay muted playsinline></video>
-      <canvas id="tc-canvas" width="640" height="480"></canvas>
-      <button id="tc-btn" class="tc-btn">Capture after {seconds}s</button>
-      <div id="tc-count"></div>
-      <div id="tc-status">Live preview below. Click the button to start a {seconds}s countdown.</div>
-    </div>
-    <script>
-      const video = document.getElementById('tc-video');
-      const canvas = document.getElementById('tc-canvas');
-      const btn = document.getElementById('tc-btn');
-      const count = document.getElementById('tc-count');
-      const status = document.getElementById('tc-status');
-      let stream = null, timer = null, remaining = 0;
-
-      async function startStream() {{
-        try {{
-          stream = await navigator.mediaDevices.getUserMedia({{ video: {{ width:640, height:480, facingMode:'user' }}, audio:false }});
-          video.srcObject = stream;
-          status.textContent = 'Camera ready. Click to capture.';
-        }} catch (e) {{
-          status.textContent = 'Camera access denied: ' + e.message;
-          btn.disabled = true;
-        }}
-      }}
-
-      function stopCountdown() {{
-        if (timer) {{ clearInterval(timer); timer = null; }}
-        btn.disabled = false;
-        btn.textContent = 'Capture after {seconds}s';
-      }}
-
-      function capture() {{
-        if (!stream) return;
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        stream.getTracks().forEach(t => t.stop());
-        video.srcObject = null;
-        // components.html -> Streamlit uses a window.parent postMessage with
-        // type "streamlit:setComponentValue".  (Generic values work here.)
-        window.parent.postMessage(
-          {{ type: 'streamlit:setComponentValue', value: dataUrl }}, '*');
-        status.textContent = 'Captured. Analysing...';
-      }}
-
-      btn.onclick = () => {{
-        if (!stream) {{ startStream(); return; }}
-        btn.disabled = true;
-        remaining = {seconds};
-        count.textContent = remaining + 's';
-        status.textContent = 'Will capture automatically. Hold still.';
-        timer = setInterval(() => {{
-          remaining -= 1;
-          count.textContent = (remaining > 0 ? remaining + 's' : '');
-          if (remaining <= 0) {{
-            count.textContent = 'Click!';
-            clearInterval(timer); timer = null;
-            capture();
-          }}
-        }}, 1000);
-      }};
-
-      // Keep the component frame alive / sized.
-      const sendHeight = () => window.parent.postMessage(
-        {{ type:'streamlit:setFrameHeight', height: document.body.scrollHeight }}, '*');
-      window.addEventListener('resize', sendHeight);
-      setTimeout(sendHeight, 200);
-    </script>
-    """
-    result = st_html(html, height=480, scrolling=False)
+    # Note: st.components.v1.html() renders a *static* iframe and never returns a
+    # value, so the captured photo was never sent back to Python.  We use a real
+    # declare_component() (frontend in timer_camera_component/) so the captured
+    # base64 photo is returned to Streamlit on the next rerun via setComponentValue.
+    comp = declare_component(name=f"timer_camera_{seconds}",
+                             path=os.path.join(os.path.dirname(__file__),
+                                               "timer_camera_component"))
+    result = comp(seconds=seconds, default=None)
     if result is None or result == prev:
         return None
     st.session_state[KEY] = result
@@ -2178,6 +2094,8 @@ def _timer_camera(seconds=5):
         header, b64 = result.split(",", 1)
         raw = base64.b64decode(b64)
         img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        if img is None or img.size == 0:
+            return None
         return img
     except Exception:
         return None

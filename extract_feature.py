@@ -15,6 +15,13 @@ ACTIVITIES = [
 ]
 ACTIVITY_MAP = {a: i for i, a in enumerate(ACTIVITIES)}
 
+# Whitelist of activities the final model keeps (curated to the ones that work:
+# the activities users actually recorded, plus the essential Fall class).
+KEEP_ACTIVITIES = [
+    "Falling", "Crouching", "Kneeling", "Lying Down",
+    "Sitting", "Standing", "Walking",
+]
+
 # Dataset folder names that should be merged into an existing class.
 _ACTIVITY_REMAP = {
     "Sitting Down": "Sitting",
@@ -875,10 +882,12 @@ def main():
     real_per_class = {a: sum(len(x) for x in lst) for a, lst in real_labels.items()}
     logger.info(f"Classes with real data: {[a for a, n in real_per_class.items() if n > 0]}")
 
-    # Only train on classes that have enough real data OR a synthetic generator.
+    # Only train on classes that have enough real data OR a synthetic generator,
+    # restricted to the curated KEEP_ACTIVITIES whitelist.
     final_activities = [
         a for a in ACTIVITIES
-        if real_per_class.get(a, 0) >= 4 or a in _POSE_GENERATORS
+        if a in KEEP_ACTIVITIES
+        and (real_per_class.get(a, 0) >= 4 or a in _POSE_GENERATORS)
     ]
     final_map = {a: i for i, a in enumerate(final_activities)}
     logger.info(f"Final activities ({len(final_activities)}): {final_activities}")

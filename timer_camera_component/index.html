@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+  <style>
+    body { margin: 8px; background: transparent; }
+    #tc-wrap { display:flex; flex-direction:column; align-items:center; gap:8px;
+               font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }
+    #tc-video { width:100%; max-width:640px; border-radius:10px; background:#000; }
+    #tc-canvas { display:none; }
+    .tc-btn { padding:10px 22px; font-size:15px; font-weight:600; border:none;
+              border-radius:8px; cursor:pointer; color:#fff; background:#2563EB; }
+    .tc-btn:hover { background:#1d4ed8; }
+    .tc-btn:disabled { background:#64748b; cursor:not-allowed; }
+    #tc-count { font-size:22px; font-weight:700; color:#ef4444; min-height:28px; }
+    #tc-status { font-size:13px; color:#94a3b8; min-height:18px; }
+  </style>
+</head>
+<body>
+  <div id="tc-wrap">
+    <video id="tc-video" autoplay muted playsinline></video>
+    <canvas id="tc-canvas" width="640" height="480"></canvas>
+    <button id="tc-btn" class="tc-btn">Capture after 5s</button>
+    <div id="tc-count"></div>
+    <div id="tc-status">Live preview below. Click the button to start a 5s countdown.</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib/dist/streamlit-component-lib.umd.min.js"></script>
+  <script>
+    const video = document.getElementById('tc-video');
+    const canvas = document.getElementById('tc-canvas');
+    const btn = document.getElementById('tc-btn');
+    const count = document.getElementById('tc-count');
+    const status = document.getElementById('tc-status');
+    let stream = null, timer = null, remaining = 0;
+
+    function sendHeight() {
+      Streamlit.setFrameHeight(document.body.scrollHeight);
+    }
+
+    async function startStream() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(
+          { video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+        video.srcObject = stream;
+        status.textContent = 'Camera ready. Click to capture.';
+      } catch (e) {
+        status.textContent = 'Camera access denied: ' + e.message;
+        btn.disabled = true;
+      }
+    }
+
+    function stopCountdown() {
+      if (timer) { clearInterval(timer); timer = null; }
+      btn.disabled = false;
+      btn.textContent = 'Capture after 5s';
+    }
+
+    function capture() {
+      if (!stream) return;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      stream.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+      Streamlit.setComponentValue(dataUrl);
+      status.textContent = 'Captured. Analysing...';
+      sendHeight();
+    }
+
+    btn.onclick = () => {
+      if (!stream) { startStream(); return; }
+      btn.disabled = true;
+      remaining = 5;
+      count.textContent = remaining + 's';
+      status.textContent = 'Will capture automatically. Hold still.';
+      timer = setInterval(() => {
+        remaining -= 1;
+        count.textContent = (remaining > 0 ? remaining + 's' : '');
+        if (remaining <= 0) {
+          count.textContent = 'Click!';
+          clearInterval(timer); timer = null;
+          capture();
+        }
+      }, 1000);
+    };
+
+    window.addEventListener('resize', sendHeight);
+    Streamlit.setComponentReady();
+    sendHeight();
+  </script>
+</body>
+</html>

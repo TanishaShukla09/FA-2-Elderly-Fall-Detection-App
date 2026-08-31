@@ -3,17 +3,10 @@
     "Standing",
     "Sitting",
     "Walking",
-    "Running",
     "Falling",
     "Lying Down",
-    "Bending",
-    "Squatting",
-    "Jumping",
-    "Climbing Stairs",
-    "Crawling",
     "Kneeling",
-    "Crouching",
-    "Getting Up"
+    "Crouching"
   ],
   "feature_names": [
     "shoulder_hip_dist",

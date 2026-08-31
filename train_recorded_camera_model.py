@@ -37,7 +37,6 @@ FLAT_LABELED = {
     "sitting": "Sitting",
     "standing": "Standing",
     "lying": "Lying Down",
-    "bending": "Bending",
 }
 
 
