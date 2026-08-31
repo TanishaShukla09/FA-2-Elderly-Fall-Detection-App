@@ -611,7 +611,7 @@ def _get_pose_landmarker(mode, low_conf=False, streaming=False):
     key = f"{mode}_{'low' if low_conf else 'std'}_{'vid' if streaming else 'img'}"
     path = _ensure_pose_model(mode)
     if key not in _POSE_CACHE:
-        det_conf = 0.3 if low_conf else 0.5
+        det_conf = 0.3 if low_conf else 0.4
         pres_conf = 0.3 if low_conf else 0.4
         opts = PoseLandmarkerOptions(
             base_options=python.BaseOptions(model_asset_path=path),
@@ -2139,9 +2139,10 @@ def _timer_camera(seconds=5):
         const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         stream.getTracks().forEach(t => t.stop());
         video.srcObject = null;
-        if (window.Streamlit) {{
-          window.Streamlit.setComponentValue(dataUrl);
-        }}
+        // components.html -> Streamlit uses a window.parent postMessage with
+        // type "streamlit:setComponentValue".  (Generic values work here.)
+        window.parent.postMessage(
+          {{ type: 'streamlit:setComponentValue', value: dataUrl }}, '*');
         status.textContent = 'Captured. Analysing...';
       }}
 
@@ -2169,7 +2170,7 @@ def _timer_camera(seconds=5):
       setTimeout(sendHeight, 200);
     </script>
     """
-    result = st_html(html, height=300, scrolling=False)
+    result = st_html(html, height=480, scrolling=False)
     if result is None or result == prev:
         return None
     st.session_state[KEY] = result
