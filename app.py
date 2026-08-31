@@ -1992,6 +1992,7 @@ def _close_webcam():
 
 def _render_captured_analysis(container, cap_frame):
     """Static analysis for a captured frame."""
+    result = None
     with container.container():
         st.markdown('<div class="section-title">Captured Frame Analysis</div>', unsafe_allow_html=True)
         c1, c2 = st.columns([2, 1], gap="small")
@@ -2001,10 +2002,23 @@ def _render_captured_analysis(container, cap_frame):
             if c_landmarks is not None:
                 c_act, c_conf, c_fa = classify_static(c_landmarks, temporal=None)
                 c_fp = ml_fall_signal(c_landmarks) or 0.0
+                # Sitting, falling and walking depend on hip/knee/ankle
+                # geometry.  MediaPipe may infer hidden legs, but those values
+                # are not reliable enough to present as a confident activity.
+                lower_body_visibility = float(np.mean([
+                    c_landmarks[idx * 4 + 3] for idx in (23, 24, 25, 26, 27, 28)
+                ]))
+                result = {
+                    "activity": _simple_activity(c_act),
+                    "confidence": c_conf,
+                    "fall_prob": c_fp,
+                    "fa": c_fa,
+                    "lower_body_visible": lower_body_visibility >= 0.35,
+                }
                 c_disp = annotate_frame(cap_frame.copy(), c_all_poses, c_act, c_conf, c_fp, c_fa, 0, c_h, c_w)
                 st.image(cv2.cvtColor(c_disp, cv2.COLOR_BGR2RGB), channels="RGB", width="stretch")
             else:
-                st.warning("No person detected.")
+                st.warning("No pose detected. Keep your upper body, hips, knees and feet in the camera frame.")
         with c2:
             if c_landmarks is not None:
                 c_act = _simple_activity(c_act)
@@ -2018,6 +2032,9 @@ def _render_captured_analysis(container, cap_frame):
                 with st.expander("Body Coordinates"):
                     st.dataframe(coords_dataframe(c_fa), width="stretch", hide_index=True)
                 log_prediction(c_act, c_conf)
+                if not result["lower_body_visible"]:
+                    st.warning("For a reliable sitting/activity result, move the camera back so hips, knees and ankles are visible.")
+    return result
 
 
 def render_live():
@@ -2098,7 +2115,7 @@ def render_live():
                 if image is None:
                     st.error("Could not read the webcam photo. Please try again.")
                 else:
-                    _render_captured_analysis(st, image)
+                    st.session_state["quick_camera_result"] = _render_captured_analysis(st, image)
 
         if use_live_video and (webrtc_ctx is None or not webrtc_ctx.state.playing):
             st.caption("Click START and allow camera access to use live video.")
@@ -2110,9 +2127,20 @@ def render_live():
 
     with side_col:
         analysis_slot = st.empty()
-        analysis_slot.markdown(
-            _analysis_html("—", 0.0, 0.0, False, 0.0, "Awaiting camera"),
-            unsafe_allow_html=True)
+        quick_result = st.session_state.get("quick_camera_result") if not use_live_video else None
+        if quick_result is not None:
+            quick_status = ("Full body detected" if quick_result["lower_body_visible"]
+                            else "Partial body - include hips, knees and feet")
+            quick_fall = (quick_result["activity"] == "Fall"
+                          or quick_result["fall_prob"] >= 0.55)
+            analysis_slot.markdown(
+                _analysis_html(quick_result["activity"], quick_result["confidence"],
+                               quick_result["fall_prob"], quick_fall, 0, quick_status),
+                unsafe_allow_html=True)
+        else:
+            analysis_slot.markdown(
+                _analysis_html("—", 0.0, 0.0, False, 0.0, "Awaiting camera"),
+                unsafe_allow_html=True)
 
         with st.expander("⚠ Alert & Sound Setup"):
             st.html(SIREN_HTML)
