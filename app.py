@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit.components.v1 import html as st_html
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit_webrtc import webrtc_streamer
 import av
@@ -62,7 +63,7 @@ def _webrtc_rtc_configuration():
             "username": "openrelayproject",
             "credential": "openrelayproject",
         }]
-    return {"iceServers": ice_servers, "iceTransportPolicy": "relay"}
+    return {"iceServers": ice_servers}
 
 # ══════════════════════════════════════════════════════════
 # 1. LANDMARK DEFINITIONS (MediaPipe Pose - 33 landmarks)
@@ -2074,6 +2075,113 @@ def _render_captured_analysis(container, cap_frame):
     return result
 
 
+def _timer_camera(seconds=5):
+    """Render a live webcam widget that auto-captures a photo after a countdown.
+
+    Uses a custom HTML5 `<video>` + `<canvas>` component that posts the captured
+    frame back to Streamlit over the normal HTTPS connection (works on both
+    localhost and Streamlit Cloud without WebRTC).  Returns the BGR image of a
+    newly captured frame, or None if no new photo was taken on this rerun.
+    """
+    KEY = "__timer_camera_last"
+    prev = st.session_state.get(KEY, None)
+
+    html = f"""
+    <style>
+      #tc-wrap {{ display:flex; flex-direction:column; align-items:center; gap:8px; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }}
+      #tc-video {{ width:100%; max-width:480px; border-radius:10px; background:#000; }}
+      #tc-canvas {{ display:none; }}
+      .tc-btn {{ padding:10px 22px; font-size:15px; font-weight:600; border:none; border-radius:8px;
+                 cursor:pointer; color:#fff; background:#2563EB; }}
+      .tc-btn:hover {{ background:#1d4ed8; }}
+      .tc-btn:disabled {{ background:#64748b; cursor:not-allowed; }}
+      #tc-count {{ font-size:22px; font-weight:700; color:#ef4444; min-height:28px; }}
+      #tc-status {{ font-size:13px; color:#94a3b8; min-height:18px; }}
+    </style>
+    <div id="tc-wrap">
+      <video id="tc-video" autoplay muted playsinline></video>
+      <canvas id="tc-canvas" width="640" height="480"></canvas>
+      <button id="tc-btn" class="tc-btn">Capture after {seconds}s</button>
+      <div id="tc-count"></div>
+      <div id="tc-status">Live preview below. Click the button to start a {seconds}s countdown.</div>
+    </div>
+    <script>
+      const video = document.getElementById('tc-video');
+      const canvas = document.getElementById('tc-canvas');
+      const btn = document.getElementById('tc-btn');
+      const count = document.getElementById('tc-count');
+      const status = document.getElementById('tc-status');
+      let stream = null, timer = null, remaining = 0;
+
+      async function startStream() {{
+        try {{
+          stream = await navigator.mediaDevices.getUserMedia({{ video: {{ width:640, height:480, facingMode:'user' }}, audio:false }});
+          video.srcObject = stream;
+          status.textContent = 'Camera ready. Click to capture.';
+        }} catch (e) {{
+          status.textContent = 'Camera access denied: ' + e.message;
+          btn.disabled = true;
+        }}
+      }}
+
+      function stopCountdown() {{
+        if (timer) {{ clearInterval(timer); timer = null; }}
+        btn.disabled = false;
+        btn.textContent = 'Capture after {seconds}s';
+      }}
+
+      function capture() {{
+        if (!stream) return;
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        stream.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+        if (window.Streamlit) {{
+          window.Streamlit.setComponentValue(dataUrl);
+        }}
+        status.textContent = 'Captured. Analysing...';
+      }}
+
+      btn.onclick = () => {{
+        if (!stream) {{ startStream(); return; }}
+        btn.disabled = true;
+        remaining = {seconds};
+        count.textContent = remaining + 's';
+        status.textContent = 'Will capture automatically. Hold still.';
+        timer = setInterval(() => {{
+          remaining -= 1;
+          count.textContent = (remaining > 0 ? remaining + 's' : '');
+          if (remaining <= 0) {{
+            count.textContent = 'Click!';
+            clearInterval(timer); timer = null;
+            capture();
+          }}
+        }}, 1000);
+      }};
+
+      // Keep the component frame alive / sized.
+      const sendHeight = () => window.parent.postMessage(
+        {{ type:'streamlit:setFrameHeight', height: document.body.scrollHeight }}, '*');
+      window.addEventListener('resize', sendHeight);
+      setTimeout(sendHeight, 200);
+    </script>
+    """
+    result = st_html(html, height=300, scrolling=False)
+    if result is None or result == prev:
+        return None
+    st.session_state[KEY] = result
+    try:
+        header, b64 = result.split(",", 1)
+        raw = base64.b64decode(b64)
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        return img
+    except Exception:
+        return None
+
+
 def render_live():
     global _live_detector_ref
     if not st.session_state.get("live_detector"):
@@ -2142,14 +2250,10 @@ def render_live():
             except Exception:
                 webrtc_ctx = None
         else:
-            st.caption("Reliable Streamlit Cloud mode: take a webcam photo and it will be analysed immediately.")
-            browser_photo = st.camera_input("Open webcam", key="browser_webcam_photo")
-            if browser_photo is not None:
-                image = cv2.imdecode(
-                    np.frombuffer(browser_photo.getvalue(), dtype=np.uint8),
-                    cv2.IMREAD_COLOR,
-                )
-                if image is None:
+            st.caption("Live preview with a 5-second auto-capture. Click the button, hold still, and a photo is taken automatically.")
+            image = _timer_camera(seconds=5)
+            if image is not None:
+                if image.size == 0:
                     st.error("Could not read the webcam photo. Please try again.")
                 else:
                     st.session_state["quick_camera_result"] = _render_captured_analysis(st, image)
