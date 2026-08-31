@@ -1843,6 +1843,12 @@ class LiveDetector:
 
     def __init__(self):
         self.lock = threading.Lock()
+        # ``async_processing=True`` permits WebRTC to invoke the callback from
+        # more than one worker.  MediaPipe's VIDEO mode and TemporalAnalyzer
+        # are sequential by design, so never queue a second expensive frame
+        # behind one already being analysed.
+        self.processing_lock = threading.Lock()
+        self.last_processed_at = 0.0
         self.temporal = TemporalAnalyzer()
         self.fall_confirmer = FallConfirmer()
         self.activity = "No Person"
@@ -1860,7 +1866,20 @@ class LiveDetector:
         self._HOLD_FRAMES = 8
 
     def process(self, image_bgr):
-        now = time.time()
+        """Process one frame, dropping excess WebRTC frames to stay live."""
+        if not self.processing_lock.acquire(blocking=False):
+            return image_bgr
+        try:
+            now = time.time()
+            min_interval = 1.0 / max(1, config.LIVE_PROCESS_FPS)
+            if now - self.last_processed_at < min_interval:
+                return image_bgr
+            self.last_processed_at = now
+            return self._process_frame(image_bgr, now)
+        finally:
+            self.processing_lock.release()
+
+    def _process_frame(self, image_bgr, now):
         h, w = image_bgr.shape[:2]
         if self.last_frame_time > 0:
             dt = max(now - self.last_frame_time, 1e-6)
@@ -1946,17 +1965,22 @@ class LiveDetector:
             self._missed_frames = 0
             self._last_landmarks = None
             self._last_all_poses = None
+            self.last_processed_at = 0.0
 
 
 _live_detector_ref = None
 
 def _webrtc_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
-    image_bgr = frame.to_ndarray(format="bgr24")
-    det = _live_detector_ref
-    if det is None:
+    try:
+        image_bgr = frame.to_ndarray(format="bgr24")
+        det = _live_detector_ref
+        if det is None:
+            return frame
+        annotated = det.process(image_bgr)
+        return av.VideoFrame.from_ndarray(annotated, format="bgr24")
+    except Exception:
+        # A camera frame should never be able to terminate the WebRTC track.
         return frame
-    annotated = det.process(image_bgr)
-    return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
 
 def _close_webcam():
@@ -2100,69 +2124,47 @@ def render_live():
         st.dataframe(reference_guide_dataframe(), width="stretch",
                      hide_index=True)
 
-    # ── live update loop (runs while WebRTC camera plays) ───
+    # Do not use a ``while webrtc_ctx.state.playing`` loop here.  It blocks
+    # Streamlit's script runner, making localhost appear frozen and preventing
+    # the Cloud frontend from completing normal component updates.  The video
+    # frame callback above continues independently on WebRTC's worker thread.
+    # These values refresh whenever Streamlit reruns (for example after a UI
+    # action), while the actual video remains live in the component.
     if webrtc_ctx is not None and webrtc_ctx.state.playing:
         if "monitor_start" not in st.session_state:
             st.session_state.monitor_start = time.time()
+        snap = detector.snapshot()
+        activity = snap["activity"]
+        confidence = snap["confidence"]
+        fall_prob = snap["fall_prob"]
+        is_fall = snap["fall_alarm"]
+        fa_obj = snap["fa"]
+        if activity != "No Person":
+            log_prediction(_simple_activity(activity), confidence)
 
-        while webrtc_ctx.state.playing:
-            snap = detector.snapshot()
-            activity = snap["activity"]
-            confidence = snap["confidence"]
-            fall_prob = snap["fall_prob"]
-            _confirmed = snap["fall_alarm"]
-            fa_obj = snap["fa"]
-            is_fall = _confirmed
-
-            # log prediction (main thread — safe for session_state)
-            if activity != "No Person":
-                log_prediction(_simple_activity(activity), confidence)
-
-            # fall alert events + toast (must run in Streamlit context)
-            if is_fall and activity != "No Person" and not st.session_state.get("_fall_toasted", False):
-                st.session_state["_fall_toasted"] = True
-                log_fall_event(fall_prob, "CONFIRMED FALL")
-                st.toast("🚨 FALL ALERT! Siren on — emergency contacts notified.")
-            elif not is_fall and st.session_state.get("_fall_toasted", False):
-                st.session_state["_fall_toasted"] = False
-                log_fall_event(0.0, "cleared")
-
-            # emergency banner
-            if is_fall:
-                emergency_slot.markdown(
-                    _emergency_banner_html(True, fall_prob, _simple_activity(activity)),
-                    unsafe_allow_html=True)
-            else:
-                elapsed = time.time() - st.session_state.get("monitor_start", time.time())
-                m, s = divmod(int(elapsed), 60)
-                hrs, m = divmod(m, 60)
-                dur = f"{hrs:02d}:{m:02d}:{s:02d}" if hrs else f"{m:02d}:{s:02d}"
-                emergency_slot.markdown(
-                    _emergency_banner_html(False, duration_str=f"Uptime: {dur}"),
-                    unsafe_allow_html=True)
-
-            # analysis panel
-            pose_status = ("No person detected" if activity == "No Person"
-                           else "Full body detected" if is_fall
-                           else ("Full body detected"
-                                 if (fa_obj is not None and hasattr(fa_obj, 'visibility')
-                                     and fa_obj.visibility and fa_obj.visibility >= 0.5)
-                                 else "Partial visibility"))
-            analysis_slot.markdown(
-                _analysis_html(_simple_activity(activity), confidence,
-                               fall_prob, is_fall, 0, pose_status),
+        if is_fall:
+            emergency_slot.markdown(
+                _emergency_banner_html(True, fall_prob, _simple_activity(activity)),
                 unsafe_allow_html=True)
-
-            # KPIs + recent activity
-            _fill_kpis(kpi_slots)
-            if st.session_state.prediction_history:
-                activity_slot.dataframe(
-                    pd.DataFrame(st.session_state.prediction_history[-8:][::-1]),
-                    width="stretch", hide_index=True)
-            else:
-                activity_slot.info("No detections yet — monitoring active.")
-
-            time.sleep(0.25)
+        pose_status = ("No person detected" if activity == "No Person"
+                       else "Full body detected" if is_fall
+                       else ("Full body detected"
+                             if (fa_obj is not None and hasattr(fa_obj, 'visibility')
+                                 and fa_obj.visibility and fa_obj.visibility >= 0.5)
+                             else "Partial visibility"))
+        analysis_slot.markdown(
+            _analysis_html(_simple_activity(activity), confidence,
+                           fall_prob, is_fall, 0, pose_status),
+            unsafe_allow_html=True)
+        _fill_kpis(kpi_slots)
+        if st.session_state.prediction_history:
+            activity_slot.dataframe(
+                pd.DataFrame(st.session_state.prediction_history[-8:][::-1]),
+                width="stretch", hide_index=True)
+        else:
+            activity_slot.info("No detections yet — monitoring active.")
+    elif webrtc_ctx is not None:
+        st.info("Click START to grant browser camera permission. If it still cannot connect on Streamlit Cloud, add your TURN credentials in the app secrets.")
 
 # ══════════════════════════════════════════════════════════
 # 17. IMAGE UPLOAD

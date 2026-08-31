@@ -43,6 +43,11 @@ LIVE_POSE_MAX_SIDE = 448
 # 30 FPS camera can queue frames faster than Windows CPU inference consumes
 # them, which makes the preview appear several seconds behind reality.
 LIVE_CAMERA_FPS = 12
+# The browser can deliver frames faster than pose inference finishes on a
+# Streamlit Cloud CPU.  Analyse a bounded number of frames and let WebRTC
+# display the others immediately; this keeps the preview responsive instead
+# of accumulating a growing processing queue.
+LIVE_PROCESS_FPS = 8
 # Public STUN server for WebRTC candidate discovery. It lets the browser
 # establish the webcam stream after deployment, rather than relying only on
 # local host candidates.
