@@ -2054,27 +2054,54 @@ def render_live():
 
     # ── two-column layout ───────────────────────────────────
     mon_col, side_col = st.columns([0.7, 0.3], gap="small")
+    # Streamlit Community Cloud runs on a remote server.  Some corporate,
+    # campus, and mobile networks block the peer connection needed by WebRTC,
+    # even when the user's browser webcam itself is working.  The native
+    # camera widget uploads a browser snapshot over the normal HTTPS app
+    # connection, so it is a dependable Cloud fallback and the default mode.
+    camera_mode = st.radio(
+        "Camera mode",
+        ["Quick camera", "Live video (WebRTC)"],
+        horizontal=True,
+        key="camera_mode",
+        help="Quick camera works on Streamlit Cloud. Live video needs a network that permits WebRTC or a configured TURN relay.",
+    )
+    use_live_video = camera_mode == "Live video (WebRTC)"
+    webrtc_ctx = None
 
     with mon_col:
-        try:
-            webrtc_ctx = webrtc_streamer(
-                key="elderly-fall-live",
-                video_frame_callback=_webrtc_frame_callback,
-                rtc_configuration=_webrtc_rtc_configuration(),
-                media_stream_constraints={
-                    "video": {"width": {"ideal": 640}, "height": {"ideal": 480},
-                              "frameRate": {"ideal": config.LIVE_CAMERA_FPS,
-                                            "max": config.LIVE_CAMERA_FPS},
-                              "facingMode": "user"},
-                    "audio": False,
-                },
-                async_processing=True,
-            )
-        except Exception:
-            webrtc_ctx = None
+        if use_live_video:
+            try:
+                webrtc_ctx = webrtc_streamer(
+                    key="elderly-fall-live",
+                    video_frame_callback=_webrtc_frame_callback,
+                    rtc_configuration=_webrtc_rtc_configuration(),
+                    media_stream_constraints={
+                        "video": {"width": {"ideal": 640}, "height": {"ideal": 480},
+                                  "frameRate": {"ideal": config.LIVE_CAMERA_FPS,
+                                                "max": config.LIVE_CAMERA_FPS},
+                                  "facingMode": "user"},
+                        "audio": False,
+                    },
+                    async_processing=True,
+                )
+            except Exception:
+                webrtc_ctx = None
+        else:
+            st.caption("Reliable Streamlit Cloud mode: take a webcam photo and it will be analysed immediately.")
+            browser_photo = st.camera_input("Open webcam", key="browser_webcam_photo")
+            if browser_photo is not None:
+                image = cv2.imdecode(
+                    np.frombuffer(browser_photo.getvalue(), dtype=np.uint8),
+                    cv2.IMREAD_COLOR,
+                )
+                if image is None:
+                    st.error("Could not read the webcam photo. Please try again.")
+                else:
+                    _render_captured_analysis(st, image)
 
-        if webrtc_ctx is None or not webrtc_ctx.state.playing:
-            st.empty()
+        if use_live_video and (webrtc_ctx is None or not webrtc_ctx.state.playing):
+            st.caption("Click START and allow camera access to use live video.")
 
         # ── captured-frame analysis ─────────────────────────
         if st.session_state.webcam_captured_frame is not None:
@@ -2163,7 +2190,7 @@ def render_live():
                 width="stretch", hide_index=True)
         else:
             activity_slot.info("No detections yet — monitoring active.")
-    elif webrtc_ctx is not None:
+    elif use_live_video and webrtc_ctx is not None:
         st.info("Click START to grant browser camera permission. If it still cannot connect on Streamlit Cloud, add your TURN credentials in the app secrets.")
 
 # ══════════════════════════════════════════════════════════
