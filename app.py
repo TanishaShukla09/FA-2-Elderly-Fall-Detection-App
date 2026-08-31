@@ -841,6 +841,7 @@ def reference_guide_dataframe():
 # runs on every script pass, so after "Record & Train" finishes, the newly
 # trained model files are picked up automatically without restarting Streamlit.
 MODEL_PATH = config.FRAME_MODEL_PATH
+RECORDED_CAMERA_MODEL_PATH = config.MODEL_DIR / "recorded_camera_model.pkl"
 _MODEL_CACHE = {}
 _ml_model = None
 _ml_activities = []
@@ -848,6 +849,7 @@ _ml_fall_threshold = config.DEFAULT_FALL_THRESHOLD
 _ml_feature_names = []
 _ml_model_name = "-"
 _binary_bundle = None
+_recorded_camera_bundle = None
 _seq_model = None
 _seq_norm = (np.zeros(len(FEATURE_NAMES)), np.ones(len(FEATURE_NAMES)))
 _seq_n_feats = len(FEATURE_NAMES)
@@ -888,6 +890,13 @@ def _load_binary_bundle(path):
     return None
 
 
+def _load_recorded_camera_bundle(path):
+    bundle = joblib.load(path)
+    if bundle.get("feature_names") == FEATURE_NAMES and "model" in bundle:
+        return bundle
+    return None
+
+
 def _load_seq_bundle(path):
     import keras
     model = keras.models.load_model(path, compile=False)
@@ -902,7 +911,7 @@ def _load_seq_bundle(path):
 def reload_models():
     """Reload any model whose file changed since it was last loaded."""
     global _ml_model, _ml_activities, _ml_fall_threshold, _ml_feature_names, _ml_model_name
-    global _binary_bundle, _seq_model, _seq_norm, _seq_n_feats
+    global _binary_bundle, _recorded_camera_bundle, _seq_model, _seq_norm, _seq_n_feats
     fb = _load_if_changed(MODEL_PATH, _load_frame_bundle)
     if fb is not None:
         _ml_model = fb["model"]
@@ -915,6 +924,7 @@ def reload_models():
         _ml_activities = []
         _ml_model_name = "-"
     _binary_bundle = _load_if_changed(config.MODEL_DIR / "binary_fall_model.pkl", _load_binary_bundle)
+    _recorded_camera_bundle = _load_if_changed(RECORDED_CAMERA_MODEL_PATH, _load_recorded_camera_bundle)
     sb = _load_if_changed(config.SEQUENCE_MODEL_PATH, _load_seq_bundle)
     if sb is not None:
         _seq_model = sb["model"]
@@ -1037,6 +1047,19 @@ def ml_predict(landmarks, temporal=None):
         return _ml_activities[idx], float(probs[idx]), probs, feats
     except Exception:
         return None, 0.0, None, None
+
+
+def recorded_camera_predict(landmarks):
+    """Predict a static activity using examples from the recording station."""
+    if _recorded_camera_bundle is None:
+        return None, 0.0
+    try:
+        features = extract_features(landmarks)
+        probabilities = _recorded_camera_bundle["model"].predict_proba([features])[0]
+        best = int(np.argmax(probabilities))
+        return str(_recorded_camera_bundle["model"].classes_[best]), float(probabilities[best])
+    except Exception:
+        return None, 0.0
 
 # ══════════════════════════════════════════════════════════
 # 10. STREAMLIT APP
@@ -2008,6 +2031,20 @@ def _render_captured_analysis(container, cap_frame):
                 lower_body_visibility = float(np.mean([
                     c_landmarks[idx * 4 + 3] for idx in (23, 24, 25, 26, 27, 28)
                 ]))
+                recorded_act, recorded_conf = recorded_camera_predict(c_landmarks)
+                # Use the recording-station model for partial-body snapshots:
+                # it is trained on the same camera angle and includes the
+                # user's labelled sitting recordings.  Fall probability is
+                # intentionally still computed by the main safety model.
+                if recorded_act is not None and lower_body_visibility < 0.35:
+                    c_act, c_conf = recorded_act, recorded_conf
+                    # The recording station is normally used while seated.
+                    # If the legs are fully cropped, pose geometry cannot
+                    # distinguish sitting from standing; prefer a clearly
+                    # marked seated estimate instead of showing a confident,
+                    # but unsupported, Standing label.
+                    if recorded_act == "Standing" and recorded_conf < 0.80:
+                        c_act, c_conf = "Sitting", max(0.55, 1.0 - recorded_conf)
                 result = {
                     "activity": _simple_activity(c_act),
                     "confidence": c_conf,
@@ -2130,7 +2167,7 @@ def render_live():
         quick_result = st.session_state.get("quick_camera_result") if not use_live_video else None
         if quick_result is not None:
             quick_status = ("Full body detected" if quick_result["lower_body_visible"]
-                            else "Partial body - include hips, knees and feet")
+                            else "Partial body - sitting estimate; include legs for confirmation")
             quick_fall = (quick_result["activity"] == "Fall"
                           or quick_result["fall_prob"] >= 0.55)
             analysis_slot.markdown(
