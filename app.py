@@ -62,7 +62,7 @@ def _webrtc_rtc_configuration():
             "username": "openrelayproject",
             "credential": "openrelayproject",
         }]
-    return {"iceServers": ice_servers}
+    return {"iceServers": ice_servers, "iceTransportPolicy": "relay"}
 
 # ══════════════════════════════════════════════════════════
 # 1. LANDMARK DEFINITIONS (MediaPipe Pose - 33 landmarks)
