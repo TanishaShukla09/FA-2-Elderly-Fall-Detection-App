@@ -138,10 +138,7 @@ Key landmarks used for the 3 activities:
 - **Knees, Ankles** — leg bend (Sitting: 70-120°, Standing/Walking: ~160-180°)
 - **Nose** — head position
 
-> **SCREENSHOT TO UPLOAD:** `screenshots/01_Pose_Estimation__for_Pose_Estimation_section.png`
-> Replace this placeholder file with your own pose-estimation screenshot.
-
-![Pose Estimation](screenshots/01_Pose_Estimation__for_Pose_Estimation_section.png)
+*(Pose visualisation is demonstrated in the demo video — no separate screenshot required.)*
 
 ---
 
@@ -235,10 +232,7 @@ Example prediction shows:
 - Confidence score (0.0–1.0)
 - Pose skeleton overlay
 
-> **SCREENSHOT TO UPLOAD:** `screenshots/05_Prediction_Result__for_Prediction_Results_section.png`
-> Take a screenshot of the app predicting Sitting, Standing, or Walking and replace this file.
-
-![Prediction Result](screenshots/05_Prediction_Result__for_Prediction_Results_section.png)
+*(Live predictions are demonstrated in the demo video — no separate screenshot required.)*
 
 ---
 
@@ -259,45 +253,7 @@ Example prediction shows:
 | Activity Statistics | Yes |
 | Model Performance Page | Yes |
 
-### Streamlit Dashboard Screenshots
-
-Upload your dashboard screenshots to the files below — each file name tells you exactly where it appears in this README:
-
-**Main Dashboard**
-
-> **UPLOAD:** `screenshots/06_Main_Dashboard__for_Streamlit_Dashboard_Main_section.png`
-
-![Main Dashboard](screenshots/06_Main_Dashboard__for_Streamlit_Dashboard_Main_section.png)
-
-**Live Monitoring**
-
-> **UPLOAD:** `screenshots/07_Live_Monitoring__for_Live_Monitoring_section.png`
-
-![Live Monitoring](screenshots/07_Live_Monitoring__for_Live_Monitoring_section.png)
-
-**Image Prediction**
-
-> **UPLOAD:** `screenshots/08_Image_Prediction__for_Image_Prediction_section.png`
-
-![Image Prediction](screenshots/08_Image_Prediction__for_Image_Prediction_section.png)
-
-**Video Prediction**
-
-> **UPLOAD:** `screenshots/09_Video_Prediction__for_Video_Prediction_section.png`
-
-![Video Prediction](screenshots/09_Video_Prediction__for_Video_Prediction_section.png)
-
-**Analytics**
-
-> **UPLOAD:** `screenshots/10_Analytics__for_Analytics_section.png`
-
-![Analytics](screenshots/10_Analytics__for_Analytics_section.png)
-
-**Model Performance**
-
-> **UPLOAD:** `screenshots/11_Model_Performance__for_Model_Performance_section.png`
-
-![Model Performance](screenshots/11_Model_Performance__for_Model_Performance_section.png)
+*(Dashboard walkthrough — Main Dashboard, Live Monitoring, Image/Video Prediction, Analytics, Model Performance — is demonstrated in the demo video — no separate screenshots required.)*
 
 ---
 
@@ -338,21 +294,11 @@ Elderly-Fall-Detection/
 │   └── pose_landmarker_lite.task
 ├── features/
 │   └── features.npz
-└── screenshots/                  # ← UPLOAD YOUR SCREENSHOTS HERE (see file names)
-    ├── 01_Pose_Estimation__for_Pose_Estimation_section.png
+└── screenshots/                  # evaluation plots only (dashboard is in video)
     ├── 02_Confusion_Matrix__for_Confusion_Matrix_section.png
     ├── 03_Training_Curves__for_Accuracy_and_Loss_section.png
-    ├── 04_Feature_Importance__for_Feature_Importance_section.png
-    ├── 05_Prediction_Result__for_Prediction_Results_section.png
-    ├── 06_Main_Dashboard__for_Streamlit_Dashboard_Main_section.png
-    ├── 07_Live_Monitoring__for_Live_Monitoring_section.png
-    ├── 08_Image_Prediction__for_Image_Prediction_section.png
-    ├── 09_Video_Prediction__for_Video_Prediction_section.png
-    ├── 10_Analytics__for_Analytics_section.png
-    └── 11_Model_Performance__for_Model_Performance_section.png
+    └── 04_Feature_Importance__for_Feature_Importance_section.png
 ```
-
-> **All file names in `screenshots/` now include `__for_<SECTION>__` so you know exactly where each image appears in this README. Just replace each file with your screenshot keeping the same file name.**
 
 ---
 
@@ -360,13 +306,12 @@ Elderly-Fall-Detection/
 
 | Evidence Item | Status | File to Upload |
 |---|---|---|
-| Pose estimation output | Included | `01_Pose_Estimation__for_Pose_Estimation_section.png` |
-| Model prediction (Sitting/Standing/Walking) | Included | `05_Prediction_Result__for_Prediction_Results_section.png` |
 | Accuracy / Precision / Recall / F1 | Included | `screenshots/evaluation_results.json` |
 | Confusion matrix (3 classes) | Included | `02_Confusion_Matrix__for_Confusion_Matrix_section.png` |
 | Training curves | Included | `03_Training_Curves__for_Accuracy_and_Loss_section.png` |
 | Feature importance | Included | `04_Feature_Importance__for_Feature_Importance_section.png` |
 | Streamlit dashboard | Deployed | `https://elderly-fall-detection.streamlit.app/` |
+| Demo video (covers pose & predictions) | Included | `[PASTE VIDEO LINK HERE]` |
 
 ---
 
