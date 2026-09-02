@@ -2,20 +2,43 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
   <style>
-    body { margin: 8px; background: transparent; }
-    #tc-wrap { display:flex; flex-direction:column; align-items:center; gap:8px;
+    html,body { margin:0; padding:0; background:transparent; }
+    body { margin:8px; }
+    #tc-wrap { display:flex; flex-direction:column; align-items:center; gap:10px;
                font-family:-apple-system,'Segoe UI',Roboto,sans-serif; }
-    #tc-video { width:100%; max-width:640px; border-radius:10px; background:#000; }
+    #tc-video { width:100%; max-width:640px; min-height:360px; border-radius:10px; background:#0f172a; object-fit:cover; }
     #tc-canvas { display:none; }
-    .tc-btn { padding:10px 22px; font-size:15px; font-weight:600; border:none;
-              border-radius:8px; cursor:pointer; color:#fff; background:#2563EB; }
+    .tc-btn { padding:12px 28px; font-size:16px; font-weight:700; border:none; border-radius:10px;
+              cursor:pointer; color:#fff; background:#2563EB; box-shadow:0 2px 8px rgba(37,99,235,0.3); }
     .tc-btn:hover { background:#1d4ed8; }
-    .tc-btn:disabled { background:#64748b; cursor:not-allowed; }
-    #tc-count { font-size:22px; font-weight:700; color:#ef4444; min-height:28px; }
-    #tc-status { font-size:13px; color:#94a3b8; min-height:18px; }
+    .tc-btn:disabled { background:#64748b; cursor:not-allowed; opacity:0.7; }
+    #tc-count { font-size:26px; font-weight:800; color:#ef4444; min-height:32px; letter-spacing:1px; }
+    #tc-status { font-size:13px; color:#64748b; min-height:18px; text-align:center; }
   </style>
+  <script>
+    // Minimal Streamlit shim — avoids CDN dependency and works locally offline.
+    // For declare_component, Streamlit expects setComponentValue / setFrameHeight / setComponentReady
+    // via postMessage. Provide a fallback if the official lib is not loaded.
+    (function(){
+      if (window.Streamlit) return;
+      window.Streamlit = {
+        setComponentValue: function(v){
+          window.parent.postMessage({isStreamlitMessage:true, type:"streamlit:setComponentValue", value:v}, "*");
+          // also send without flag for older Streamlit html handling
+          window.parent.postMessage({type:"streamlit:setComponentValue", value:v}, "*");
+        },
+        setFrameHeight: function(h){
+          window.parent.postMessage({isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h}, "*");
+          window.parent.postMessage({type:"streamlit:setFrameHeight", height:h}, "*");
+        },
+        setComponentReady: function(){
+          window.parent.postMessage({isStreamlitMessage:true, type:"streamlit:componentReady", apiVersion:1}, "*");
+          window.parent.postMessage({type:"streamlit:componentReady"}, "*");
+        }
+      };
+    })();
+  </script>
 </head>
 <body>
   <div id="tc-wrap">
@@ -23,9 +46,8 @@
     <canvas id="tc-canvas" width="640" height="480"></canvas>
     <button id="tc-btn" class="tc-btn">Capture after 5s</button>
     <div id="tc-count"></div>
-    <div id="tc-status">Live preview below. Click the button to start a 5s countdown.</div>
+    <div id="tc-status">Starting camera...</div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib/dist/streamlit-component-lib.umd.min.js"></script>
   <script>
     const video = document.getElementById('tc-video');
     const canvas = document.getElementById('tc-canvas');
@@ -33,63 +55,101 @@
     const count = document.getElementById('tc-count');
     const status = document.getElementById('tc-status');
     let stream = null, timer = null, remaining = 0;
+    let captured = false;
 
     function sendHeight() {
-      Streamlit.setFrameHeight(document.body.scrollHeight);
+      try { Streamlit.setFrameHeight(document.body.scrollHeight + 20); } catch(e){}
     }
 
     async function startStream() {
       try {
+        status.textContent = 'Requesting camera...';
         stream = await navigator.mediaDevices.getUserMedia(
-          { video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+          { video: { width: {ideal:640}, height:{ideal:480}, facingMode:'user' }, audio: false });
         video.srcObject = stream;
-        status.textContent = 'Camera ready. Click to capture.';
+        await video.play().catch(()=>{});
+        status.textContent = 'Camera ready. Click button for 5s countdown.';
+        btn.disabled = false;
+        sendHeight();
       } catch (e) {
-        status.textContent = 'Camera access denied: ' + e.message;
+        status.textContent = 'Camera access denied or unavailable: ' + (e.message || e);
         btn.disabled = true;
+        sendHeight();
       }
     }
 
-    function stopCountdown() {
-      if (timer) { clearInterval(timer); timer = null; }
-      btn.disabled = false;
-      btn.textContent = 'Capture after 5s';
-    }
-
     function capture() {
-      if (!stream) return;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      stream.getTracks().forEach(t => t.stop());
-      video.srcObject = null;
-      Streamlit.setComponentValue(dataUrl);
-      status.textContent = 'Captured. Analysing...';
-      sendHeight();
+      if (!stream || captured) return;
+      captured = true;
+      try {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        // stop camera
+        try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+        video.srcObject = null;
+        status.textContent = 'Captured. Analysing...';
+        count.textContent = 'Done';
+        btn.disabled = true;
+        btn.textContent = 'Captured';
+        // send to Streamlit — this triggers Python rerun
+        Streamlit.setComponentValue(dataUrl);
+        sendHeight();
+        // fallback: also try direct postMessage if shim failed
+        setTimeout(function(){
+          try { window.parent.postMessage({type:'streamlit:setComponentValue', value:dataUrl}, '*'); } catch(e){}
+        }, 100);
+      } catch(e){
+        status.textContent = 'Capture failed: ' + e.message;
+      }
     }
 
-    btn.onclick = () => {
-      if (!stream) { startStream(); return; }
+    btn.onclick = function() {
+      if (captured) return;
+      if (!stream) {
+        // if stream not ready yet, start it then start countdown once ready
+        startStream().then(function(){
+          if (stream && !captured) startCountdown();
+        });
+        return;
+      }
+      startCountdown();
+    };
+
+    function startCountdown(){
+      if (captured) return;
       btn.disabled = true;
       remaining = 5;
       count.textContent = remaining + 's';
-      status.textContent = 'Will capture automatically. Hold still.';
-      timer = setInterval(() => {
+      status.textContent = 'Hold still — capturing in 5s...';
+      btn.textContent = 'Capturing...';
+      if (timer) clearInterval(timer);
+      timer = setInterval(function() {
         remaining -= 1;
-        count.textContent = (remaining > 0 ? remaining + 's' : '');
-        if (remaining <= 0) {
+        if (remaining > 0) {
+          count.textContent = remaining + 's';
+        } else {
           count.textContent = 'Click!';
           clearInterval(timer); timer = null;
           capture();
         }
       }, 1000);
-    };
+    }
 
+    // auto-start camera on load for single-click UX
+    window.addEventListener('load', function(){
+      // Streamlit may not have injected its API yet — shim already handles it
+      try { Streamlit.setComponentReady(); } catch(e){}
+      sendHeight();
+      startStream();
+    });
     window.addEventListener('resize', sendHeight);
-    Streamlit.setComponentReady();
-    sendHeight();
+    // also signal ready immediately (some Streamlit versions need it early)
+    try { Streamlit.setComponentReady(); } catch(e){}
+    setTimeout(sendHeight, 300);
+    setTimeout(sendHeight, 1000);
   </script>
 </body>
 </html>

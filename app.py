@@ -93,9 +93,8 @@ KEY_JOINT_NAMES = [
 #    current detected posture vs. expected posture patterns)
 # ══════════════════════════════════════════════════════════
 ACTIVITIES = [
-    "Standing", "Sitting", "Walking", "Running", "Falling",
-    "Lying Down", "Bending", "Squatting", "Jumping", "Climbing Stairs",
-    "Crawling", "Kneeling", "Crouching", "Getting Up",
+    "Standing", "Sitting", "Walking", "Falling",
+    "Lying Down", "Kneeling", "Crouching",
 ]
 
 REFERENCE_POSTURES = {
@@ -115,12 +114,6 @@ REFERENCE_POSTURES = {
         "hip_height": "moderate, oscillates", "velocity": "moderate horizontal",
         "foot_pattern": "alternating - one foot grounded",
     },
-    "Running": {
-        "torso_angle": "10-30 deg forward lean", "knee_angle": "90-170 deg cycling",
-        "hip_angle": (90, 170), "elbow_angle": (20, 50),
-        "hip_height": "high, with flight phase", "velocity": "high",
-        "foot_pattern": "flight phase - both feet leave ground",
-    },
     "Falling": {
         "torso_angle": "rapidly increases 20->90", "knee_angle": "any",
         "hip_angle": "any", "elbow_angle": "any",
@@ -133,36 +126,6 @@ REFERENCE_POSTURES = {
         "hip_height": "very low, shoulder-hip-head aligned",
         "velocity": "very low", "foot_pattern": "horizontal body",
     },
-    "Bending": {
-        "torso_angle": (30, 90), "knee_angle": (150, 180),
-        "hip_angle": (60, 120), "elbow_angle": (150, 180),
-        "hip_height": "nearly stationary", "velocity": "low",
-        "foot_pattern": "feet fixed, legs straight",
-    },
-    "Squatting": {
-        "torso_angle": (10, 50), "knee_angle": (30, 90),
-        "hip_angle": (40, 90), "elbow_angle": (150, 180),
-        "hip_height": "moves downward", "velocity": "low",
-        "foot_pattern": "feet fixed, deep knee bend",
-    },
-    "Jumping": {
-        "torso_angle": (5, 30), "knee_angle": (90, 180),
-        "hip_angle": (90, 180), "elbow_angle": (20, 60),
-        "hip_height": "rises then falls", "velocity": "upward accel then landing",
-        "foot_pattern": "both feet leave ground together",
-    },
-    "Climbing Stairs": {
-        "torso_angle": (5, 35), "knee_angle": "alternating high/low",
-        "hip_angle": "alternating", "elbow_angle": (20, 60),
-        "hip_height": "gradually rises", "velocity": "forward motion",
-        "foot_pattern": "one foot elevated on higher step",
-    },
-    "Crawling": {
-        "torso_angle": (0, 30), "knee_angle": "very bent",
-        "hip_angle": (80, 140), "elbow_angle": (20, 90),
-        "hip_height": "low, near floor", "velocity": "slow horizontal",
-        "foot_pattern": "hands and knees on floor",
-    },
     "Kneeling": {
         "torso_angle": (5, 40), "knee_angle": (140, 180),
         "hip_angle": (80, 140), "elbow_angle": "any",
@@ -174,12 +137,6 @@ REFERENCE_POSTURES = {
         "hip_angle": (60, 120), "elbow_angle": "any",
         "hip_height": "dropped low", "velocity": "very low",
         "foot_pattern": "feet flat, squat-like but lighter",
-    },
-    "Getting Up": {
-        "torso_angle": "tilts forward then upright", "knee_angle": "extends",
-        "hip_angle": "extends from seat", "elbow_angle": "any",
-        "hip_height": "rises from seat to standing", "velocity": "upward, moderate",
-        "foot_pattern": "feet planted, weight shifts forward",
     },
 }
 
@@ -2071,34 +2028,63 @@ def _render_captured_analysis(container, cap_frame):
 def _timer_camera(seconds=5):
     """Render a live webcam widget that auto-captures a photo after a countdown.
 
-    Uses a custom HTML5 `<video>` + `<canvas>` component that posts the captured
-    frame back to Streamlit over the normal HTTPS connection (works on both
-    localhost and Streamlit Cloud without WebRTC).  Returns the BGR image of a
-    newly captured frame, or None if no new photo was taken on this rerun.
+    Primary path is a lightweight custom component (timer_camera_component/)
+    that uses the browser MediaDevices API and returns the JPEG as a base64
+    data URL via Streamlit.setComponentValue.  If the component cannot be
+    loaded (e.g. corporate proxy, missing frontend, Streamlit Cloud asset
+    issue) we fall back to Streamlit's built-in ``st.camera_input`` so the
+    app never shows a red "trouble loading component" error.
     """
     KEY = "__timer_camera_last"
     prev = st.session_state.get(KEY, None)
 
-    # Note: st.components.v1.html() renders a *static* iframe and never returns a
-    # value, so the captured photo was never sent back to Python.  We use a real
-    # declare_component() (frontend in timer_camera_component/) so the captured
-    # base64 photo is returned to Streamlit on the next rerun via setComponentValue.
-    comp = declare_component(name=f"timer_camera_{seconds}",
-                             path=os.path.join(os.path.dirname(__file__),
-                                               "timer_camera_component"))
-    result = comp(seconds=seconds, default=None)
-    if result is None or result == prev:
-        return None
-    st.session_state[KEY] = result
+    # Try the 5-second timer component first (localhost primary path).
     try:
-        header, b64 = result.split(",", 1)
-        raw = base64.b64decode(b64)
-        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
-        if img is None or img.size == 0:
+        comp = declare_component(
+            name=f"timer_camera_{seconds}",
+            path=os.path.join(os.path.dirname(__file__), "timer_camera_component"),
+        )
+        result = comp(seconds=seconds, default=None)
+        if result is not None and result != prev:
+            st.session_state[KEY] = result
+            try:
+                header, b64 = result.split(",", 1)
+                raw = base64.b64decode(b64)
+                img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None and img.size != 0:
+                    return img
+            except Exception:
+                pass
+        elif result is not None and result == prev:
             return None
-        return img
-    except Exception:
-        return None
+    except Exception as _e:
+        # Component failed to load — fall through to st.camera_input fallback.
+        # Do not surface the exception; the fallback UI will handle capture.
+        pass
+
+    # ── Fallback: Streamlit native camera (always works, no custom frontend) ──
+    # Kept in an expander so the primary timer camera stays prominent; the
+    # fallback is only needed if the custom component is blocked by a proxy.
+    fb_key = "__timer_camera_fallback_used"
+    with st.expander("Fallback camera (use if timer above does not load)", expanded=False):
+        st.caption("Browser camera that works without the timer component.")
+        fallback = st.camera_input("Take a photo", key="__fallback_camera_input", label_visibility="collapsed")
+        if fallback is not None:
+            try:
+                file_bytes = fallback.getvalue()
+                file_hash = hash(file_bytes)
+                if st.session_state.get("__fallback_last_hash") == file_hash:
+                    return None
+                st.session_state["__fallback_last_hash"] = file_hash
+                st.session_state[fb_key] = True
+                arr = np.frombuffer(file_bytes, np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if img is not None and img.size != 0:
+                    st.session_state[KEY] = f"fallback:{file_hash}"
+                    return img
+            except Exception:
+                return None
+    return None
 
 
 def render_live():
@@ -2176,6 +2162,12 @@ def render_live():
                     st.error("Could not read the webcam photo. Please try again.")
                 else:
                     st.session_state["quick_camera_result"] = _render_captured_analysis(st, image)
+            # Allow retaking without a full page reload
+            if st.session_state.get("quick_camera_result") is not None:
+                if st.button("Retake photo", key="retake_quick", width="stretch"):
+                    for k in ["__timer_camera_last", "__fallback_last_hash", "quick_camera_result", "__fallback_camera_input"]:
+                        st.session_state.pop(k, None)
+                    st.rerun()
 
         if use_live_video and (webrtc_ctx is None or not webrtc_ctx.state.playing):
             st.caption("Click START and allow camera access to use live video.")
