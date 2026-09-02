@@ -4,8 +4,8 @@ A real-time elderly activity monitoring system that uses MediaPipe pose estimati
 
 | Link | URL |
 |---|---|
-| **Live App** | `[PASTE STREAMLIT CLOUD LINK HERE]` |
-| **GitHub** | `[PASTE GITHUB REPOSITORY LINK HERE]` |
+| **Live App** | `https://elderly-fall-detection.streamlit.app/` |
+| **GitHub** | `https://github.com/TanishaShukla09/FA-2-Elderly-Fall-Detection-App` |
 | **Demo Video** | `[PASTE VIDEO LINK HERE]` |
 | **Training Notebook** | [Google Colab](https://colab.research.google.com/drive/1clvQhHRRjirMR_EgK_K7UdDlwFonQMgT?usp=sharing) |
 
@@ -244,7 +244,7 @@ Example prediction shows:
 
 ## Streamlit Dashboard
 
-**Live Application:** `[PASTE STREAMLIT LINK HERE]`
+**Live Application:** `https://elderly-fall-detection.streamlit.app/`
 
 ### Dashboard Features (for the 3 activities)
 
@@ -305,7 +305,7 @@ Upload your dashboard screenshots to the files below — each file name tells yo
 
 ```bash
 # 1. Clone the repository
-git clone [PASTE GITHUB LINK HERE]
+git clone https://github.com/TanishaShukla09/FA-2-Elderly-Fall-Detection-App.git
 cd Elderly-Fall-Detection
 
 # 2. Install dependencies
@@ -366,7 +366,7 @@ Elderly-Fall-Detection/
 | Confusion matrix (3 classes) | Included | `02_Confusion_Matrix__for_Confusion_Matrix_section.png` |
 | Training curves | Included | `03_Training_Curves__for_Accuracy_and_Loss_section.png` |
 | Feature importance | Included | `04_Feature_Importance__for_Feature_Importance_section.png` |
-| Streamlit dashboard | Deployed | `[PASTE LINK]` |
+| Streamlit dashboard | Deployed | `https://elderly-fall-detection.streamlit.app/` |
 
 ---
 
@@ -382,6 +382,6 @@ Elderly-Fall-Detection/
 
 | Item | Link |
 |---|---|
-| **Live Streamlit Application** | `[PASTE STREAMLIT LINK HERE]` |
-| **GitHub Repository** | `[PASTE GITHUB REPOSITORY LINK HERE]` |
+| **Live Streamlit Application** | `https://elderly-fall-detection.streamlit.app/` |
+| **GitHub Repository** | `https://github.com/TanishaShukla09/FA-2-Elderly-Fall-Detection-App` |
 | **Demo Video** | `[PASTE VIDEO LINK HERE]` |
