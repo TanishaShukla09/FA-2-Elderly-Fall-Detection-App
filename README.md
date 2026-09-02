@@ -6,7 +6,7 @@ A real-time elderly activity monitoring system that uses MediaPipe pose estimati
 |---|---|
 | **Live App** | `https://elderly-fall-detection.streamlit.app/` |
 | **GitHub** | `https://github.com/TanishaShukla09/FA-2-Elderly-Fall-Detection-App` |
-| **Demo Video** | `[PASTE VIDEO LINK HERE]` |
+| **Demo Video** | `https://canva.link/vrttaumvg0bkz6t` |
 | **Training Notebook** | [Google Colab](https://colab.research.google.com/drive/1clvQhHRRjirMR_EgK_K7UdDlwFonQMgT?usp=sharing) |
 
 ---
@@ -311,7 +311,7 @@ Elderly-Fall-Detection/
 | Training curves | Included | `03_Training_Curves__for_Accuracy_and_Loss_section.png` |
 | Feature importance | Included | `04_Feature_Importance__for_Feature_Importance_section.png` |
 | Streamlit dashboard | Deployed | `https://elderly-fall-detection.streamlit.app/` |
-| Demo video (covers pose & predictions) | Included | `[PASTE VIDEO LINK HERE]` |
+| Demo video (covers pose & predictions) | Included | `https://canva.link/vrttaumvg0bkz6t` |
 
 ---
 
@@ -329,4 +329,4 @@ Elderly-Fall-Detection/
 |---|---|
 | **Live Streamlit Application** | `https://elderly-fall-detection.streamlit.app/` |
 | **GitHub Repository** | `https://github.com/TanishaShukla09/FA-2-Elderly-Fall-Detection-App` |
-| **Demo Video** | `[PASTE VIDEO LINK HERE]` |
+| **Demo Video** | `https://canva.link/vrttaumvg0bkz6t` |
